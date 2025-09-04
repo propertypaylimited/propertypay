@@ -242,18 +242,21 @@ export type Database = {
           is_available: boolean | null
           name: string | null
           property_id: string
+          rent_amount: number | null
         }
         Insert: {
           id?: string
           is_available?: boolean | null
           name?: string | null
           property_id: string
+          rent_amount?: number | null
         }
         Update: {
           id?: string
           is_available?: boolean | null
           name?: string | null
           property_id?: string
+          rent_amount?: number | null
         }
         Relationships: [
           {
