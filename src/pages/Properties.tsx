@@ -2,18 +2,16 @@ import React, { useState } from 'react';
 import { useProperties } from '@/hooks/useProperties';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, MapPin, Star, Upload, Building } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { Plus, Building } from 'lucide-react';
+import PropertyCard from '@/components/properties/PropertyCard';
 
 const Properties = () => {
-  const { user } = useAuth();
-  const { properties, loading, createProperty, uploadPropertyImage } = useProperties();
+  const { user, isLandlord, isAdmin } = useAuth();
+  const { properties, loading, createProperty, uploadPropertyImage, fetchProperties } = useProperties();
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -69,7 +67,7 @@ const Properties = () => {
           </p>
         </div>
         
-        {user && (
+        {(user && (isLandlord || isAdmin)) && (
           <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
             <DialogTrigger asChild>
               <Button>
@@ -129,88 +127,14 @@ const Properties = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredProperties.map((property) => {
-          const averageRating = calculateAverageRating(property.ratings || []);
-          const availableUnits = property.units?.filter(unit => unit.is_available).length || 0;
-          
-          return (
-            <Card key={property.id} className="overflow-hidden">
-              <div className="aspect-video bg-muted relative">
-                {property.images && property.images.length > 0 ? (
-                  <img
-                    src={property.images[0].url}
-                    alt={property.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-muted-foreground">
-                      <MapPin className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-sm">No image</p>
-                    </div>
-                  </div>
-                )}
-                
-                {user && (
-                  <div className="absolute top-2 right-2">
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleImageUpload(property.id, file);
-                          }
-                        }}
-                      />
-                      <div className="bg-black bg-opacity-50 text-white p-1 rounded">
-                        <Upload className="h-4 w-4" />
-                      </div>
-                    </label>
-                  </div>
-                )}
-              </div>
-              
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{property.name}</CardTitle>
-                    <CardDescription className="flex items-center mt-1">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {property.address || 'No address provided'}
-                    </CardDescription>
-                  </div>
-                  {parseFloat(averageRating.toString()) > 0 && (
-                    <div className="flex items-center">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                      <span className="text-sm font-medium">{averageRating}</span>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div className="flex space-x-2">
-                    <Badge variant="secondary">
-                      {property.units?.length || 0} units
-                    </Badge>
-                    {availableUnits > 0 && (
-                      <Badge variant="default">
-                        {availableUnits} available
-                      </Badge>
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {filteredProperties.map((property) => (
+          <PropertyCard
+            key={property.id}
+            property={property}
+            onImageUpload={handleImageUpload}
+            onRefresh={fetchProperties}
+          />
+        ))}
       </div>
 
       {filteredProperties.length === 0 && (
@@ -220,7 +144,7 @@ const Properties = () => {
           <p className="text-muted-foreground mb-4">
             {searchTerm ? 'Try adjusting your search terms.' : 'Get started by creating your first property.'}
           </p>
-          {user && !searchTerm && (
+          {user && !searchTerm && (isLandlord || isAdmin) && (
             <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Your First Property
