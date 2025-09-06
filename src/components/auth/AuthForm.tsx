@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 
 interface AuthFormProps {
@@ -18,6 +19,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ defaultMode = 'signin' }) => {
     email: '',
     password: '',
     fullName: '',
+    role: 'tenant' as 'admin' | 'tenant' | 'landlord',
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,7 +43,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ defaultMode = 'signin' }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signUp(formData.email, formData.password, formData.fullName);
+      await signUp(formData.email, formData.password, formData.fullName, formData.role);
     } finally {
       setLoading(false);
     }
@@ -134,6 +136,20 @@ const AuthForm: React.FC<AuthFormProps> = ({ defaultMode = 'signin' }) => {
                     placeholder="Create a password"
                     minLength={6}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">I am a:</Label>
+                  <Select value={formData.role} onValueChange={(value: 'admin' | 'tenant' | 'landlord') => 
+                    setFormData(prev => ({ ...prev, role: value }))
+                  }>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tenant">Tenant (Looking for properties)</SelectItem>
+                      <SelectItem value="landlord">Landlord (Property owner)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

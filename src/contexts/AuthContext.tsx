@@ -7,7 +7,7 @@ interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: 'user' | 'admin';
+  role: 'admin' | 'tenant' | 'landlord';
 }
 
 interface AuthContextType {
@@ -15,7 +15,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, role?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   isLandlord: boolean;
@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, role: string = 'tenant') => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -92,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             full_name: fullName,
+            role: role,
           },
           emailRedirectTo: `${window.location.origin}/`,
         },
@@ -153,8 +154,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Helper functions to determine user type
-  const isLandlord = Boolean(user && profile);
-  const isTenant = Boolean(user && profile);
+  const isLandlord = profile?.role === 'landlord';
+  const isTenant = profile?.role === 'tenant';
   const isAdmin = profile?.role === 'admin';
 
   const value = {
