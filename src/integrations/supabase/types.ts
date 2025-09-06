@@ -47,19 +47,25 @@ export type Database = {
         Row: {
           amount: number
           created_at: string | null
+          due_date: string | null
           id: string
+          status: string | null
           tenancy_id: string
         }
         Insert: {
           amount: number
           created_at?: string | null
+          due_date?: string | null
           id?: string
+          status?: string | null
           tenancy_id: string
         }
         Update: {
           amount?: number
           created_at?: string | null
+          due_date?: string | null
           id?: string
+          status?: string | null
           tenancy_id?: string
         }
         Relationships: [
@@ -182,6 +188,7 @@ export type Database = {
         Row: {
           end_date: string | null
           id: string
+          recurring_interval: string | null
           start_date: string | null
           status: string | null
           unit_id: string
@@ -189,6 +196,7 @@ export type Database = {
         Insert: {
           end_date?: string | null
           id?: string
+          recurring_interval?: string | null
           start_date?: string | null
           status?: string | null
           unit_id: string
@@ -196,6 +204,7 @@ export type Database = {
         Update: {
           end_date?: string | null
           id?: string
+          recurring_interval?: string | null
           start_date?: string | null
           status?: string | null
           unit_id?: string
@@ -238,6 +247,7 @@ export type Database = {
       }
       units: {
         Row: {
+          description: string | null
           id: string
           is_available: boolean | null
           name: string | null
@@ -245,6 +255,7 @@ export type Database = {
           rent_amount: number | null
         }
         Insert: {
+          description?: string | null
           id?: string
           is_available?: boolean | null
           name?: string | null
@@ -252,6 +263,7 @@ export type Database = {
           rent_amount?: number | null
         }
         Update: {
+          description?: string | null
           id?: string
           is_available?: boolean | null
           name?: string | null
