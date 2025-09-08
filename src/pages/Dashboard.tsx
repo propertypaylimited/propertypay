@@ -5,7 +5,19 @@ import LandlordDashboard from '@/components/dashboards/LandlordDashboard';
 import TenantDashboard from '@/components/dashboards/TenantDashboard';
 
 const Dashboard = () => {
-  const { profile, isAdmin, isLandlord, isTenant } = useAuth();
+  const { profile, isAdmin, isLandlord, isTenant, loading } = useAuth();
+  
+  console.log('Dashboard render:', { profile, isAdmin, isLandlord, isTenant, loading });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isAdmin) {
     return <AdminDashboard />;
