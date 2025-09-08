@@ -6,8 +6,6 @@ import TenantDashboard from '@/components/dashboards/TenantDashboard';
 
 const Dashboard = () => {
   const { profile, isAdmin, isLandlord, isTenant, loading } = useAuth();
-  
-  console.log('Dashboard render:', { profile, isAdmin, isLandlord, isTenant, loading });
 
   if (loading) {
     return (
