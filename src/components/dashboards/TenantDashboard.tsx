@@ -3,202 +3,238 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useProperties } from '@/hooks/useProperties';
 import { useTenancies } from '@/hooks/useTenancies';
-import { Search, MapPin, Star, Home, Calendar, DollarSign, Plus } from 'lucide-react';
+import { Search, Home, Calendar, DollarSign, CreditCard, Clock, FileText, Settings, Download, MessageSquare, Wrench, Bell } from 'lucide-react';
 
 const TenantDashboard = () => {
-  const { properties } = useProperties();
   const { tenancies } = useTenancies();
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchCategory, setSearchCategory] = useState('all');
 
-  const myTenancies = tenancies.length;
-  const activeTenancies = tenancies.filter(t => t.status === 'active').length;
-  const pendingTenancies = tenancies.filter(t => t.status === 'pending').length;
-  const totalPayments = tenancies.reduce((acc, tenancy) => acc + tenancy.payments.length, 0);
+  // Get active tenancy (assuming one active tenancy per tenant)
+  const activeTenancy = tenancies.find(t => t.status === 'active');
+  const rentAmount = activeTenancy?.unit?.rent_amount || 0;
+  const nextDueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Mock: 30 days from now
+  const daysTillDue = Math.ceil((nextDueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const rentStatus = daysTillDue > 0 ? 'Unpaid' : daysTillDue === 0 ? 'Due Today' : 'Overdue';
+  const statusColor = daysTillDue > 7 ? 'text-green-600' : daysTillDue > 0 ? 'text-yellow-600' : 'text-red-600';
 
-  // Filter available properties for search
-  const availableProperties = properties.filter(property => {
-    const hasAvailableUnits = property.units?.some(unit => unit.is_available);
-    const matchesSearch = !searchTerm || 
-      property.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      property.address?.toLowerCase().includes(searchTerm.toLowerCase());
-    return hasAvailableUnits && matchesSearch;
-  });
-
-  const calculateAverageRating = (ratings: any[]) => {
-    if (!ratings || ratings.length === 0) return 0;
-    const sum = ratings.reduce((acc, rating) => acc + rating.rating, 0);
-    return (sum / ratings.length).toFixed(1);
-  };
-
-  const tenantStats = [
-    {
-      title: 'My Applications',
-      value: myTenancies,
-      description: 'Total applications',
-      icon: Home,
-      color: 'text-blue-600',
-    },
-    {
-      title: 'Active Tenancies',
-      value: activeTenancies,
-      description: 'Currently renting',
-      icon: Calendar,
-      color: 'text-green-600',
-    },
-    {
-      title: 'Pending Applications',
-      value: pendingTenancies,
-      description: 'Awaiting approval',
-      icon: Calendar,
-      color: 'text-yellow-600',
-    },
-    {
-      title: 'Payments Made',
-      value: totalPayments,
-      description: 'Total payments',
-      icon: DollarSign,
-      color: 'text-purple-600',
-    },
+  // Mock data for additional features
+  const outstandingBalance = 0;
+  const lateFees = 0;
+  const recentPayments = activeTenancy?.payments?.slice(0, 3).map(p => ({
+    ...p,
+    status: 'paid' as const
+  })) || [];
+  const messages = [
+    { id: 1, from: 'Property Manager', subject: 'Monthly Newsletter', date: '2024-01-15', unread: true },
+    { id: 2, from: 'Landlord', subject: 'Maintenance Schedule', date: '2024-01-10', unread: false }
   ];
+  const maintenanceRequests = [
+    { id: 1, title: 'Kitchen Faucet Leak', status: 'In Progress', date: '2024-01-12' },
+    { id: 2, title: 'AC Unit Noise', status: 'Completed', date: '2024-01-08' }
+  ];
+
+  // Search functionality
+  const searchItems = [
+    ...recentPayments.map(p => ({ type: 'payment', ...p })),
+    ...messages.map(m => ({ type: 'message', ...m })),
+    ...maintenanceRequests.map(m => ({ type: 'maintenance', ...m }))
+  ];
+
+  const filteredSearchItems = searchItems.filter(item => {
+    const matchesCategory = searchCategory === 'all' || item.type === searchCategory;
+    const matchesSearch = !searchTerm || 
+      JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Tenant Dashboard</h1>
-        <p className="text-muted-foreground">Find your perfect home</p>
+      {/* Header with Search */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Rent Dashboard</h1>
+          <p className="text-muted-foreground">Manage your rent and tenancy</p>
+        </div>
+        
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
+          <Input
+            placeholder="Search payments, messages, documents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-64"
+          />
+          <select 
+            value={searchCategory} 
+            onChange={(e) => setSearchCategory(e.target.value)}
+            className="px-3 py-2 border rounded-md bg-background"
+          >
+            <option value="all">All</option>
+            <option value="payment">Payments</option>
+            <option value="message">Messages</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
       </div>
 
+      {/* Rent Overview - Most Prominent */}
+      {activeTenancy && (
+        <Card className="border-2 border-primary/20 bg-gradient-to-r from-background to-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="text-xl">Current Rent</span>
+              <Badge variant={rentStatus === 'Overdue' ? 'destructive' : rentStatus === 'Due Today' ? 'secondary' : 'outline'}>
+                {rentStatus}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div>
+                <p className="text-sm text-muted-foreground">Amount Due</p>
+                <p className="text-3xl font-bold">${rentAmount}</p>
+                {outstandingBalance > 0 && (
+                  <p className="text-sm text-red-600">+ ${outstandingBalance} outstanding</p>
+                )}
+                {lateFees > 0 && (
+                  <p className="text-sm text-red-600">+ ${lateFees} late fees</p>
+                )}
+              </div>
+              
+              <div>
+                <p className="text-sm text-muted-foreground">Due Date</p>
+                <p className="text-xl font-semibold">{nextDueDate.toLocaleDateString()}</p>
+                <p className={`text-sm ${statusColor}`}>
+                  {daysTillDue > 0 ? `${daysTillDue} days remaining` : 
+                   daysTillDue === 0 ? 'Due today' : `${Math.abs(daysTillDue)} days overdue`}
+                </p>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <Button size="lg" className="w-full">
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Pay Now
+                </Button>
+                <div className="text-xs text-muted-foreground text-center">
+                  Supports Card, Bank Transfer, MTN MOMO
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quick Actions & Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {tenantStats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={index}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <Icon className={`h-4 w-4 ${stat.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground">{stat.description}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Payment History</p>
+                <p className="text-2xl font-bold">{recentPayments.length}</p>
+              </div>
+              <FileText className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Messages</p>
+                <p className="text-2xl font-bold">{messages.filter(m => m.unread).length}</p>
+                <p className="text-xs text-muted-foreground">unread</p>
+              </div>
+              <MessageSquare className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Maintenance</p>
+                <p className="text-2xl font-bold">{maintenanceRequests.filter(r => r.status === 'In Progress').length}</p>
+                <p className="text-xs text-muted-foreground">active</p>
+              </div>
+              <Wrench className="h-8 w-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Reminders</p>
+                <p className="text-2xl font-bold">3</p>
+                <p className="text-xs text-muted-foreground">active</p>
+              </div>
+              <Bell className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Find Properties
-          </CardTitle>
-          <CardDescription>Search for available properties and units</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <Input
-                placeholder="Search properties by name or location..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-            
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {availableProperties.slice(0, 6).map((property) => {
-                const averageRating = calculateAverageRating(property.ratings || []);
-                const availableUnits = property.units?.filter(unit => unit.is_available) || [];
-                const minRent = Math.min(...availableUnits.map(unit => Number(unit.rent_amount) || 0));
-                
-                return (
-                  <Card key={property.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="aspect-video bg-muted relative">
-                      {property.images && property.images.length > 0 ? (
-                        <img
-                          src={property.images[0].url}
-                          alt={property.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <Home className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">{property.name}</CardTitle>
-                          <CardDescription className="flex items-center mt-1">
-                            <MapPin className="h-4 w-4 mr-1" />
-                            {property.address || 'Location not specified'}
-                          </CardDescription>
-                        </div>
-                        {parseFloat(averageRating.toString()) > 0 && (
-                          <div className="flex items-center">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                            <span className="text-sm font-medium">{averageRating}</span>
-                          </div>
-                        )}
-                      </div>
-                    </CardHeader>
-                    
-                    <CardContent>
-                      <div className="flex justify-between items-center mb-2">
-                        <Badge variant="secondary">
-                          {availableUnits.length} unit{availableUnits.length !== 1 ? 's' : ''} available
-                        </Badge>
-                        <span className="font-medium text-green-600">
-                          From ${minRent}/month
-                        </span>
-                      </div>
-                      <Button variant="outline" size="sm" className="w-full">
-                        View Details
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {myTenancies > 0 && (
+      {/* Recent Activity */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Payment History */}
         <Card>
           <CardHeader>
-            <CardTitle>My Applications</CardTitle>
-            <CardDescription>Your recent tenancy applications and their status</CardDescription>
+            <CardTitle className="flex items-center justify-between">
+              <span>Recent Payments</span>
+              <Button variant="outline" size="sm">View All</Button>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tenancies.slice(0, 5).map((tenancy) => (
-                <div key={tenancy.id} className="flex items-center justify-between p-4 border rounded-lg">
+              {recentPayments.length > 0 ? recentPayments.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <p className="font-medium">{tenancy.unit?.property?.name} - {tenancy.unit?.name}</p>
+                    <p className="font-medium">${payment.amount}</p>
                     <p className="text-sm text-muted-foreground">
-                      Applied: {new Date(tenancy.start_date).toLocaleDateString()}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Rent: ${tenancy.unit?.rent_amount}/month
+                      {new Date(payment.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <Badge variant={
-                      tenancy.status === 'active' ? 'default' :
-                      tenancy.status === 'pending' ? 'secondary' : 
-                      'outline'
-                    }>
-                      {tenancy.status}
+                  <div className="flex items-center gap-2">
+                    <Badge variant={payment.status === 'paid' ? 'default' : 'secondary'}>
+                      {payment.status}
                     </Badge>
-                    {tenancy.status === 'active' && tenancy.payments.length > 0 && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Last payment: {new Date(tenancy.payments[0].created_at).toLocaleDateString()}
-                      </p>
+                    <Button variant="ghost" size="sm">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-center text-muted-foreground py-4">No payment history available</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Messages from Landlord */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Messages & Announcements</span>
+              <Button variant="outline" size="sm">View All</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div key={message.id} className={`p-3 border rounded-lg ${message.unread ? 'bg-primary/5 border-primary/20' : ''}`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium">{message.subject}</p>
+                      <p className="text-sm text-muted-foreground">From: {message.from}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(message.date).toLocaleDateString()}</p>
+                    </div>
+                    {message.unread && (
+                      <Badge variant="secondary" className="text-xs">New</Badge>
                     )}
                   </div>
                 </div>
@@ -206,7 +242,118 @@ const TenantDashboard = () => {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Maintenance Requests */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Maintenance Requests</span>
+            <Button variant="outline" size="sm">
+              <Wrench className="h-4 w-4 mr-2" />
+              New Request
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {maintenanceRequests.map((request) => (
+              <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium">{request.title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Submitted: {new Date(request.date).toLocaleDateString()}
+                  </p>
+                </div>
+                <Badge variant={request.status === 'Completed' ? 'default' : request.status === 'In Progress' ? 'secondary' : 'outline'}>
+                  {request.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Search Results */}
+      {searchTerm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Search Results</CardTitle>
+            <CardDescription>
+              Found {filteredSearchItems.length} items matching "{searchTerm}"
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {filteredSearchItems.map((item, index) => (
+                <div key={index} className="p-3 border rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <Badge variant="outline" className="mb-2 capitalize">{item.type}</Badge>
+                      <p className="font-medium">
+                        {item.type === 'payment' ? `Payment $${(item as any).amount}` :
+                         item.type === 'message' ? (item as any).subject :
+                         (item as any).title}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date((item as any).date || (item as any).created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
+
+      {/* Documents & Lease Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Documents & Lease</span>
+            <Button variant="outline" size="sm">
+              <FileText className="h-4 w-4 mr-2" />
+              View Lease
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <h4 className="font-medium">Current Lease</h4>
+              <p className="text-sm text-muted-foreground">
+                {activeTenancy ? `${activeTenancy.unit?.property?.name} - ${activeTenancy.unit?.name}` : 'No active lease'}
+              </p>
+              {activeTenancy && (
+                <div className="text-sm">
+                  <p>Start: {new Date(activeTenancy.start_date).toLocaleDateString()}</p>
+                  {activeTenancy.end_date && (
+                    <p>End: {new Date(activeTenancy.end_date).toLocaleDateString()}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-medium">Available Documents</h4>
+              <div className="space-y-1">
+                <Button variant="ghost" size="sm" className="justify-start h-auto p-2">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Lease Agreement
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start h-auto p-2">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Payment Statements
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start h-auto p-2">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Property Rules
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
