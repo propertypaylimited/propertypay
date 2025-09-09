@@ -59,7 +59,7 @@ export const useTenancies = () => {
           tenants:tenancy_tenants (
             id,
             tenant_id,
-            tenant:profiles!tenancy_tenants_tenant_id_fkey (
+            tenant:profiles (
               full_name,
               email
             )
