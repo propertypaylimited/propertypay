@@ -45,12 +45,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
-      setProfile(data as Profile);
+      
+      // If no profile exists, create one
+      if (!data) {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: userId,
+            email: '',
+            full_name: '',
+            role: 'tenant'
+          }])
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        setProfile(newProfile as Profile);
+      } else {
+        setProfile(data as Profile);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
+      // Set a default profile to prevent infinite loading
+      setProfile({
+        id: userId,
+        email: '',
+        full_name: '',
+        role: 'tenant'
+      });
     }
   };
 
