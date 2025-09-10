@@ -38,6 +38,14 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
+    /* Status colors for rent app */
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 355.7 100% 97.3%;
+    --warning: 47.9 95.8% 53.1%;
+    --warning-foreground: 26 83.3% 14.1%;
+    --danger: 0 84.2% 60.2%;
+    --danger-foreground: 210 40% 98%;
+
     --sidebar-background: 0 0% 98%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -91,6 +99,14 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Dark mode status colors */
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 144.9 80.4% 10%;
+    --warning: 47.9 95.8% 53.1%;
+    --warning-foreground: 26 83.3% 14.1%;
+    --danger: 0 62.8% 30.6%;
+    --danger-foreground: 210 40% 98%;
   }
 }
 

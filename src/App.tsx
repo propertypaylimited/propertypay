@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Navigation from "@/components/layout/Navigation";
+import BottomNavigation from "@/components/layout/BottomNavigation";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -25,7 +26,7 @@ const App = () => (
         <BrowserRouter>
           <div className="min-h-screen bg-background">
             <Navigation />
-            <main className="container mx-auto px-4 py-6">
+            <main className="container mx-auto px-4 py-6 md:px-4 md:py-6 px-0 py-0">
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
+            <BottomNavigation />
           </div>
         </BrowserRouter>
       </TooltipProvider>
