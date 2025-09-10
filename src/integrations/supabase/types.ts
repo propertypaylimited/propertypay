@@ -186,6 +186,7 @@ export type Database = {
       }
       tenancies: {
         Row: {
+          created_at: string
           end_date: string | null
           id: string
           recurring_interval: string | null
@@ -194,6 +195,7 @@ export type Database = {
           unit_id: string
         }
         Insert: {
+          created_at?: string
           end_date?: string | null
           id?: string
           recurring_interval?: string | null
@@ -202,6 +204,7 @@ export type Database = {
           unit_id: string
         }
         Update: {
+          created_at?: string
           end_date?: string | null
           id?: string
           recurring_interval?: string | null
