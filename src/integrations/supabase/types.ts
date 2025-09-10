@@ -299,6 +299,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      is_owner_of_tenancy: {
+        Args: { tenancy_id: string }
+        Returns: boolean
+      }
+      is_tenant_of_tenancy: {
+        Args: { tenancy_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
