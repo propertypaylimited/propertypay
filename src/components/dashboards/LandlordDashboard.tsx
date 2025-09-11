@@ -6,8 +6,10 @@ import { useProperties } from '@/hooks/useProperties';
 import { useTenancies } from '@/hooks/useTenancies';
 import { Building, Users, DollarSign, AlertCircle, Plus, CheckCircle, Clock } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { useNavigate } from 'react-router-dom';
 
 const LandlordDashboard = () => {
+  const navigate = useNavigate();
   const { properties } = useProperties();
   const { tenancies, updateTenancyStatus } = useTenancies();
 
@@ -63,9 +65,15 @@ const LandlordDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Landlord Dashboard</h1>
-        <p className="text-muted-foreground">Manage your properties and tenancies</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Landlord Dashboard</h1>
+          <p className="text-muted-foreground">Manage your properties and tenancies</p>
+        </div>
+        <Button onClick={() => navigate('/properties')} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Add Property
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
