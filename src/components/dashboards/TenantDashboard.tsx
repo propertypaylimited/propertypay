@@ -5,14 +5,16 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useTenancies } from '@/hooks/useTenancies';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, CreditCard, AlertTriangle, CheckCircle, Clock, FileText, Wrench, MessageSquare, TrendingUp } from 'lucide-react';
+import { Bell, CreditCard, AlertTriangle, CheckCircle, Clock, FileText, Wrench, MessageSquare, TrendingUp, Search } from 'lucide-react';
 import PaymentOptionsModal from '@/components/tenant/PaymentOptionsModal';
+import PropertySearch from '@/components/tenant/PropertySearch';
 import { cn } from '@/lib/utils';
 
 const TenantDashboard = () => {
   const { profile } = useAuth();
   const { tenancies } = useTenancies();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPropertySearch, setShowPropertySearch] = useState(false);
 
   // Get active tenancy (assuming one active tenancy per tenant)
   const activeTenancy = tenancies.find(t => t.status === 'active');
@@ -66,6 +68,13 @@ const TenantDashboard = () => {
 
   const quickActions = [
     {
+      title: 'Search Properties',
+      description: 'Find new rentals',
+      icon: Search,
+      color: 'bg-primary/10 text-primary border-primary/20',
+      action: () => setShowPropertySearch(!showPropertySearch),
+    },
+    {
       title: 'Request Maintenance',
       description: 'Report issues',
       icon: Wrench,
@@ -76,14 +85,14 @@ const TenantDashboard = () => {
       title: 'View Agreement',
       description: 'Lease documents',
       icon: FileText,
-      color: 'bg-primary/10 text-primary border-primary/20',
+      color: 'bg-success/10 text-success border-success/20',
       action: () => console.log('Navigate to documents'),
     },
     {
       title: 'Contact Landlord',
       description: 'Send message',
       icon: MessageSquare,
-      color: 'bg-success/10 text-success border-success/20',
+      color: 'bg-secondary/10 text-secondary border-secondary/20',
       action: () => console.log('Navigate to messages'),
     },
   ];
@@ -227,9 +236,9 @@ const TenantDashboard = () => {
             <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
             <div className="grid gap-3">
               {quickActions.map((action, index) => {
-                const Icon = action.icon;
+                 const Icon = action.icon;
                 return (
-                  <Card key={index} className={cn("border cursor-pointer hover:shadow-md transition-all", action.color)}>
+                  <Card key={index} className={cn("border cursor-pointer hover:shadow-md transition-all", action.color)} onClick={action.action}>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4">
                         <Icon size={24} />
@@ -244,6 +253,11 @@ const TenantDashboard = () => {
               })}
             </div>
           </div>
+
+          {/* Property Search Section */}
+          {showPropertySearch && (
+            <PropertySearch />
+          )}
 
           {/* Recent Activity Feed */}
           <div>
