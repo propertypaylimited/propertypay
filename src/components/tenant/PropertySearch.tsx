@@ -3,22 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, MapPin, DollarSign, Home, Star, Filter } from 'lucide-react';
+import { Search, MapPin, DollarSign, Home, Star, X } from 'lucide-react';
 import { useProperties } from '@/hooks/useProperties';
 import { cn } from '@/lib/utils';
 
 interface PropertySearchProps {
   className?: string;
+  onClose?: () => void;
 }
 
-const PropertySearch: React.FC<PropertySearchProps> = ({ className }) => {
+const PropertySearch: React.FC<PropertySearchProps> = ({ className, onClose }) => {
   const { properties, loading } = useProperties();
   const [searchTerm, setSearchTerm] = useState('');
-  const [minRent, setMinRent] = useState([0]);
-  const [maxRent, setMaxRent] = useState([5000]);
-  const [sortBy, setSortBy] = useState('name');
+  const [minRent, setMinRent] = useState('');
+  const [maxRent, setMaxRent] = useState('');
   const [filteredProperties, setFilteredProperties] = useState(properties);
 
   // Calculate average rating for a property
@@ -56,7 +54,9 @@ const PropertySearch: React.FC<PropertySearchProps> = ({ className }) => {
 
       // Rent range filter
       const rentRange = getRentRange(property);
-      const matchesRent = rentRange.min <= maxRent[0] && rentRange.max >= minRent[0];
+      const minRentNum = minRent ? parseInt(minRent) : 0;
+      const maxRentNum = maxRent ? parseInt(maxRent) : 10000;
+      const matchesRent = rentRange.min <= maxRentNum && rentRange.max >= minRentNum;
 
       // Only show properties with available units
       const hasAvailableUnits = getAvailableUnits(property).length > 0;
@@ -64,22 +64,11 @@ const PropertySearch: React.FC<PropertySearchProps> = ({ className }) => {
       return matchesSearch && matchesRent && hasAvailableUnits;
     });
 
-    // Sort properties
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'rent-low':
-          return getRentRange(a).min - getRentRange(b).min;
-        case 'rent-high':
-          return getRentRange(b).min - getRentRange(a).min;
-        case 'rating':
-          return calculateAverageRating(b.ratings || []) - calculateAverageRating(a.ratings || []);
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
+    // Sort properties by name
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
 
     setFilteredProperties(filtered);
-  }, [properties, searchTerm, minRent, maxRent, sortBy]);
+  }, [properties, searchTerm, minRent, maxRent]);
 
   if (loading) {
     return (
@@ -94,10 +83,17 @@ const PropertySearch: React.FC<PropertySearchProps> = ({ className }) => {
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search size={24} />
-          Find Properties
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Search size={24} />
+            Find Properties
+          </CardTitle>
+          {onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X size={20} />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Search Input */}
@@ -111,54 +107,34 @@ const PropertySearch: React.FC<PropertySearchProps> = ({ className }) => {
           />
         </div>
 
-        {/* Filters */}
+        {/* Simple Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Rent Range */}
-          <div className="space-y-3">
+          {/* Min Rent */}
+          <div className="space-y-2">
             <label className="text-sm font-medium flex items-center gap-2">
               <DollarSign size={16} />
-              Rent Range: ${minRent[0]} - ${maxRent[0]}
+              Min Rent
             </label>
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground">Minimum: ${minRent[0]}</div>
-              <Slider
-                value={minRent}
-                onValueChange={setMinRent}
-                max={4000}
-                step={100}
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground">Maximum: ${maxRent[0]}</div>
-              <Slider
-                value={maxRent}
-                onValueChange={setMaxRent}
-                min={500}
-                max={5000}
-                step={100}
-                className="w-full"
-              />
-            </div>
+            <Input
+              type="number"
+              placeholder="Min rent"
+              value={minRent}
+              onChange={(e) => setMinRent(e.target.value)}
+            />
           </div>
 
-          {/* Sort By */}
-          <div className="space-y-3">
+          {/* Max Rent */}
+          <div className="space-y-2">
             <label className="text-sm font-medium flex items-center gap-2">
-              <Filter size={16} />
-              Sort By
+              <DollarSign size={16} />
+              Max Rent
             </label>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name (A-Z)</SelectItem>
-                <SelectItem value="rent-low">Rent (Low to High)</SelectItem>
-                <SelectItem value="rent-high">Rent (High to Low)</SelectItem>
-                <SelectItem value="rating">Rating</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              type="number"
+              placeholder="Max rent"
+              value={maxRent}
+              onChange={(e) => setMaxRent(e.target.value)}
+            />
           </div>
         </div>
 

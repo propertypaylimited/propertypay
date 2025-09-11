@@ -236,9 +236,16 @@ const TenantDashboard = () => {
             <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
             <div className="grid gap-3">
               {quickActions.map((action, index) => {
-                 const Icon = action.icon;
+                const Icon = action.icon;
                 return (
-                  <Card key={index} className={cn("border cursor-pointer hover:shadow-md transition-all", action.color)} onClick={action.action}>
+                  <Card 
+                    key={index} 
+                    className={cn("border cursor-pointer hover:shadow-md transition-all", action.color)}
+                    onClick={() => {
+                      console.log('Clicked:', action.title);
+                      action.action();
+                    }}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-center gap-4">
                         <Icon size={24} />
@@ -256,7 +263,7 @@ const TenantDashboard = () => {
 
           {/* Property Search Section */}
           {showPropertySearch && (
-            <PropertySearch />
+            <PropertySearch onClose={() => setShowPropertySearch(false)} />
           )}
 
           {/* Recent Activity Feed */}
