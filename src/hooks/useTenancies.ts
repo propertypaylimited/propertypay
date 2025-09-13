@@ -31,6 +31,9 @@ export interface Tenancy {
     id: string;
     amount: number;
     created_at: string;
+    due_date?: string | null;
+    status?: string | null;
+    tenancy_id?: string;
   }[];
 }
 
@@ -67,7 +70,10 @@ export const useTenancies = () => {
           payments (
             id,
             amount,
-            created_at
+            created_at,
+            due_date,
+            status,
+            tenancy_id
           )
         `)
         .order('created_at', { ascending: false });
