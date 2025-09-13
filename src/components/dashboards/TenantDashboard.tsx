@@ -5,10 +5,16 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useTenancies } from '@/hooks/useTenancies';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, CreditCard, AlertTriangle, CheckCircle, Clock, FileText, Wrench, MessageSquare, TrendingUp, Search } from 'lucide-react';
+import { Bell, CreditCard, AlertTriangle, Search } from 'lucide-react';
 import PaymentOptionsModal from '@/components/tenant/PaymentOptionsModal';
 import PropertySearch from '@/components/tenant/PropertySearch';
 import { cn } from '@/lib/utils';
+import ProfileInfo from '@/components/tenant/ProfileInfo';
+import PropertyDetailsCard from '@/components/tenant/PropertyDetailsCard';
+import AgreementsList from '@/components/tenant/AgreementsList';
+import PaymentsList from '@/components/tenant/PaymentsList';
+import MaintenanceRequestsList from '@/components/tenant/MaintenanceRequestsList';
+import { usePayments } from '@/hooks/usePayments';
 
 const TenantDashboard = () => {
   const { profile } = useAuth();
@@ -18,12 +24,22 @@ const TenantDashboard = () => {
 
   // Get active tenancy (assuming one active tenancy per tenant)
   const activeTenancy = tenancies.find(t => t.status === 'active');
-  const rentAmount = activeTenancy?.unit?.rent_amount || 1200; // Default for demo
-  const nextDueDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days from now
-  const daysTillDue = Math.ceil((nextDueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const rentAmount = activeTenancy?.unit?.rent_amount || 0;
+
+  // Next due date is derived from latest unpaid payment due_date or next interval; fallback to null
+  const { payments } = usePayments();
+  const relevantPayments = payments.filter(p => activeTenancy && p.tenancy_id === activeTenancy.id);
+  const nextDueDate = (() => {
+    const withDue = relevantPayments.filter(p => p.due_date);
+    if (withDue.length === 0) return null;
+    const next = withDue.sort((a, b) => new Date(a.due_date as string).getTime() - new Date(b.due_date as string).getTime())[0];
+    return next?.due_date ? new Date(next.due_date) : null;
+  })();
+  const daysTillDue = nextDueDate ? Math.ceil((nextDueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
   
   // Determine rent status and color
   const getRentStatus = () => {
+    if (daysTillDue === null) return { status: 'No Due', color: 'success', urgent: false };
     if (daysTillDue < 0) return { status: 'Overdue', color: 'danger', urgent: true };
     if (daysTillDue === 0) return { status: 'Due Today', color: 'warning', urgent: true };
     if (daysTillDue <= 7) return { status: 'Due Soon', color: 'warning', urgent: true };
@@ -31,40 +47,8 @@ const TenantDashboard = () => {
   };
 
   const rentStatus = getRentStatus();
-  const outstandingBalance = daysTillDue < 0 ? 150 : 0; // Mock late fee
+  const outstandingBalance = 0;
   const totalDue = rentAmount + outstandingBalance;
-
-  // Mock data for activity feed
-  const activityItems = [
-    {
-      id: 1,
-      type: 'payment',
-      title: 'Rent Payment Processed',
-      description: '$1,200.00',
-      date: '2024-01-15',
-      icon: CheckCircle,
-      color: 'text-success',
-    },
-    {
-      id: 2,
-      type: 'message',
-      title: 'Message from Landlord',
-      description: 'Maintenance scheduled for next week',
-      date: '2024-01-14',
-      icon: MessageSquare,
-      color: 'text-primary',
-      unread: true,
-    },
-    {
-      id: 3,
-      type: 'maintenance',
-      title: 'Work Order Completed',
-      description: 'Kitchen faucet repair finished',
-      date: '2024-01-12',
-      icon: Wrench,
-      color: 'text-success',
-    },
-  ];
 
   const quickActions = [
     {
@@ -74,27 +58,7 @@ const TenantDashboard = () => {
       color: 'bg-primary/10 text-primary border-primary/20',
       action: () => setShowPropertySearch(!showPropertySearch),
     },
-    {
-      title: 'Request Maintenance',
-      description: 'Report issues',
-      icon: Wrench,
-      color: 'bg-warning/10 text-warning border-warning/20',
-      action: () => console.log('Navigate to maintenance'),
-    },
-    {
-      title: 'View Agreement',
-      description: 'Lease documents',
-      icon: FileText,
-      color: 'bg-success/10 text-success border-success/20',
-      action: () => console.log('Navigate to documents'),
-    },
-    {
-      title: 'Contact Landlord',
-      description: 'Send message',
-      icon: MessageSquare,
-      color: 'bg-secondary/10 text-secondary border-secondary/20',
-      action: () => console.log('Navigate to messages'),
-    },
+    // Other actions can be added via navigation in future
   ];
 
   return (
@@ -135,19 +99,21 @@ const TenantDashboard = () => {
               <AlertTriangle size={20} />
               <div className="flex-1">
                 <p className="font-medium">
-                  {rentStatus.status === 'Overdue' 
-                    ? `Rent is ${Math.abs(daysTillDue)} days overdue!`
-                    : rentStatus.status === 'Due Today'
-                    ? 'Rent is due today!'
-                    : `Rent due in ${daysTillDue} days`
-                  }
+                  {daysTillDue !== null ? (
+                    rentStatus.status === 'Overdue' 
+                      ? `Rent is ${Math.abs(daysTillDue)} days overdue!`
+                      : rentStatus.status === 'Due Today'
+                      ? 'Rent is due today!'
+                      : `Rent due in ${daysTillDue} days`
+                  ) : 'No rent due at the moment'}
                 </p>
                 <p className="text-sm opacity-90">Pay now to avoid late fees</p>
               </div>
             </div>
           )}
 
-          {/* Rent Status Card - Most Prominent */}
+          {/* Rent Status Card - only if tenancy or due info exists */}
+          {(activeTenancy || nextDueDate) && (
           <Card className={cn(
             "border-2 relative overflow-hidden",
             rentStatus.color === 'success' && "border-success/30 bg-gradient-to-r from-success/5 to-success/10",
@@ -173,16 +139,17 @@ const TenantDashboard = () => {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <p className="text-sm text-muted-foreground">Due Date</p>
-                  <p className="font-semibold">{nextDueDate.toLocaleDateString()}</p>
+                  <p className="font-semibold">{nextDueDate ? nextDueDate.toLocaleDateString() : '—'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Property</p>
                   <p className="font-semibold">
-                    {activeTenancy?.unit?.property?.name || 'Sunset Apartments'}
+                    {activeTenancy?.unit?.property?.name || '—'}
                   </p>
                 </div>
               </div>
 
+              {activeTenancy && (
               <Button 
                 size="lg" 
                 className="w-full h-14 text-lg font-semibold"
@@ -191,44 +158,18 @@ const TenantDashboard = () => {
                 <CreditCard className="mr-3" size={24} />
                 Pay ${totalDue} Now
               </Button>
+              )}
               <p className="text-xs text-center text-muted-foreground mt-2">
                 MTN MoMo • Airtel Money • Card • Bank Transfer
               </p>
             </CardContent>
           </Card>
+          )}
 
-          {/* Key Info Cards */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="text-center">
-              <CardContent className="p-4">
-                <div className={cn(
-                  "w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center",
-                  "bg-success/10 text-success"
-                )}>
-                  <CheckCircle size={24} />
-                </div>
-                <p className="text-2xl font-bold">12</p>
-                <p className="text-xs text-muted-foreground">Payments Made</p>
-              </CardContent>
-            </Card>
-            <Card className="text-center">
-              <CardContent className="p-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto mb-2 flex items-center justify-center">
-                  <Clock size={24} />
-                </div>
-                <p className="text-2xl font-bold">{daysTillDue > 0 ? daysTillDue : 0}</p>
-                <p className="text-xs text-muted-foreground">Days Left</p>
-              </CardContent>
-            </Card>
-            <Card className="text-center">
-              <CardContent className="p-4">
-                <div className="w-12 h-12 rounded-full bg-warning/10 text-warning mx-auto mb-2 flex items-center justify-center">
-                  <TrendingUp size={24} />
-                </div>
-                <p className="text-2xl font-bold">$0</p>
-                <p className="text-xs text-muted-foreground">Outstanding</p>
-              </CardContent>
-            </Card>
+          {/* Profile & Property Sections */}
+          <div className="grid gap-3">
+            <ProfileInfo />
+            <PropertyDetailsCard tenancy={activeTenancy} />
           </div>
 
           {/* Quick Actions */}
@@ -266,67 +207,18 @@ const TenantDashboard = () => {
             <PropertySearch onClose={() => setShowPropertySearch(false)} />
           )}
 
-          {/* Recent Activity Feed */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Recent Activity</h2>
-              <Button variant="ghost" size="sm">View All</Button>
-            </div>
-            <div className="space-y-3">
-              {activityItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Card key={item.id} className={cn("relative", item.unread && "border-primary/50 bg-primary/5")}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className={cn("p-2 rounded-full", item.color === 'text-success' ? 'bg-success/10' : item.color === 'text-primary' ? 'bg-primary/10' : 'bg-muted')}>
-                          <Icon size={16} className={item.color} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="font-medium text-sm">{item.title}</p>
-                              <p className="text-sm text-muted-foreground">{item.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString()}</p>
-                              {item.unread && (
-                                <div className="w-2 h-2 bg-primary rounded-full"></div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
+          {/* Agreements, Payments, Maintenance Sections */}
+          {tenancies.length > 0 && (
+            <AgreementsList tenancyIds={tenancies.map(t => t.id)} />
+          )}
 
-          {/* Reminders */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Reminders</h3>
-                <Badge variant="secondary">3</Badge>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-warning rounded-full"></div>
-                  <span>Maintenance inspection tomorrow at 2 PM</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  <span>Lease renewal notice due next month</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-success rounded-full"></div>
-                  <span>New community guidelines available</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {tenancies.length > 0 && (
+            <PaymentsList tenancyIds={tenancies.map(t => t.id)} />
+          )}
+
+          <MaintenanceRequestsList tenantId={profile?.id} propertyId={activeTenancy?.unit?.property?.id} />
+
+          {/* No fake reminders or activity feed */}
         </div>
       </div>
 

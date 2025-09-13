@@ -8,6 +8,7 @@ interface Profile {
   email: string;
   full_name: string;
   role: 'admin' | 'tenant' | 'landlord';
+  phone?: string | null;
 }
 
 interface AuthContextType {
