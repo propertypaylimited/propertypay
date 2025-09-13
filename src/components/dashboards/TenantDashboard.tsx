@@ -1,70 +1,180 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useTenancies } from '@/hooks/useTenancies';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, CreditCard, AlertTriangle, CheckCircle, Clock, FileText, Wrench, MessageSquare, TrendingUp, Search } from 'lucide-react';
+import { Bell, CreditCard, FileText, Wrench, MessageSquare, Search, MapPin, Calendar } from 'lucide-react';
 import PaymentOptionsModal from '@/components/tenant/PaymentOptionsModal';
 import PropertySearch from '@/components/tenant/PropertySearch';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+
+type Payment = {
+  id: string;
+  amount: number;
+  created_at: string | null;
+  status: string | null;
+  due_date: string | null;
+  tenancy?: {
+    unit?: {
+      name?: string | null;
+      rent_amount?: number | null;
+      property?: {
+        id: string;
+        name: string;
+        address: string | null;
+      } | null;
+    } | null;
+  } | null;
+};
+
+type Agreement = {
+  id: string;
+  created_at?: string | null;
+  title?: string | null;
+  status?: string | null;
+  tenancy_id?: string | null;
+  property_id?: string | null;
+};
+
+type MaintenanceRequest = {
+  id: string;
+  created_at?: string | null;
+  title?: string | null;
+  status?: string | null;
+  tenancy_id?: string | null;
+  property_id?: string | null;
+};
 
 const TenantDashboard = () => {
   const { profile } = useAuth();
   const { tenancies } = useTenancies();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showPropertySearch, setShowPropertySearch] = useState(false);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [upcomingPayment, setUpcomingPayment] = useState<Payment | null>(null);
+  const [agreements, setAgreements] = useState<Agreement[] | null>(null);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Get active tenancy (assuming one active tenancy per tenant)
-  const activeTenancy = tenancies.find(t => t.status === 'active');
-  const rentAmount = activeTenancy?.unit?.rent_amount || 1200; // Default for demo
-  const nextDueDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days from now
-  const daysTillDue = Math.ceil((nextDueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const activeTenancy = useMemo(() => tenancies.find(t => t.status === 'active'), [tenancies]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAll = async () => {
+      try {
+        setLoading(true);
+        const tenancyIds = tenancies.map(t => t.id);
+        const propertyIds = tenancies
+          .map(t => t.unit?.property?.id)
+          .filter((id): id is string => Boolean(id));
+        // Payments (recent)
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('payments')
+          .select(`
+            id, amount, created_at, status, due_date,
+            tenancy:tenancies (
+              unit:units (
+                name, rent_amount,
+                property:properties (id, name, address)
+              )
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (paymentsError) throw paymentsError;
+        if (!isMounted) return;
+        setPayments((paymentsData || []) as unknown as Payment[]);
+
+        // Upcoming payment (earliest pending/overdue by due_date)
+        const { data: upcomingData, error: upcomingError } = await supabase
+          .from('payments')
+          .select('id, amount, created_at, status, due_date')
+          .in('status', ['pending', 'overdue'])
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(1);
+        if (upcomingError) throw upcomingError;
+        if (!isMounted) return;
+        setUpcomingPayment((upcomingData && upcomingData[0]) ? (upcomingData[0] as Payment) : null);
+
+        // Agreements (optional table)
+        try {
+          let agreementsQuery = supabase
+            .from('agreements' as any)
+            .select('id, created_at, title, status, tenancy_id, property_id')
+            .order('created_at', { ascending: false })
+            .limit(5);
+          if (tenancyIds.length > 0 && propertyIds.length > 0) {
+            agreementsQuery = (agreementsQuery as any).or(`tenancy_id.in.(${tenancyIds.join(',')}),property_id.in.(${propertyIds.join(',')})`);
+          } else if (tenancyIds.length > 0) {
+            agreementsQuery = agreementsQuery.in('tenancy_id', tenancyIds);
+          } else if (propertyIds.length > 0) {
+            agreementsQuery = agreementsQuery.in('property_id', propertyIds);
+          }
+          const { data: agreementsData, error: agreementsError } = await agreementsQuery as any;
+          if (agreementsError) throw agreementsError;
+          if (!isMounted) return;
+          setAgreements((agreementsData || []) as Agreement[]);
+        } catch (err: any) {
+          if (isMounted) setAgreements(null);
+        }
+
+        // Maintenance Requests (optional table)
+        try {
+          let mrQuery = supabase
+            .from('maintenance_requests' as any)
+            .select('id, created_at, title, status, tenancy_id, property_id')
+            .order('created_at', { ascending: false })
+            .limit(5);
+          if (tenancyIds.length > 0 && propertyIds.length > 0) {
+            mrQuery = (mrQuery as any).or(`tenancy_id.in.(${tenancyIds.join(',')}),property_id.in.(${propertyIds.join(',')})`);
+          } else if (tenancyIds.length > 0) {
+            mrQuery = mrQuery.in('tenancy_id', tenancyIds);
+          } else if (propertyIds.length > 0) {
+            mrQuery = mrQuery.in('property_id', propertyIds);
+          }
+          const { data: mrData, error: mrError } = await mrQuery as any;
+          if (mrError) throw mrError;
+          if (!isMounted) return;
+          setMaintenanceRequests((mrData || []) as MaintenanceRequest[]);
+        } catch (err: any) {
+          if (isMounted) setMaintenanceRequests(null);
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchAll();
+    return () => { isMounted = false; };
+  }, [tenancies]);
   
-  // Determine rent status and color
-  const getRentStatus = () => {
-    if (daysTillDue < 0) return { status: 'Overdue', color: 'danger', urgent: true };
-    if (daysTillDue === 0) return { status: 'Due Today', color: 'warning', urgent: true };
-    if (daysTillDue <= 7) return { status: 'Due Soon', color: 'warning', urgent: true };
-    return { status: 'Current', color: 'success', urgent: false };
-  };
-
-  const rentStatus = getRentStatus();
-  const outstandingBalance = daysTillDue < 0 ? 150 : 0; // Mock late fee
-  const totalDue = rentAmount + outstandingBalance;
-
-  // Mock data for activity feed
-  const activityItems = [
-    {
-      id: 1,
-      type: 'payment',
-      title: 'Rent Payment Processed',
-      description: '$1,200.00',
-      date: '2024-01-15',
-      icon: CheckCircle,
-      color: 'text-success',
-    },
-    {
-      id: 2,
-      type: 'message',
-      title: 'Message from Landlord',
-      description: 'Maintenance scheduled for next week',
-      date: '2024-01-14',
-      icon: MessageSquare,
-      color: 'text-primary',
-      unread: true,
-    },
-    {
-      id: 3,
-      type: 'maintenance',
-      title: 'Work Order Completed',
-      description: 'Kitchen faucet repair finished',
-      date: '2024-01-12',
-      icon: Wrench,
-      color: 'text-success',
-    },
-  ];
+  const rentInfo = useMemo(() => {
+    if (!upcomingPayment || !upcomingPayment.due_date) return null;
+    const due = new Date(upcomingPayment.due_date);
+    const now = new Date();
+    const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    let label = 'Current';
+    let color = 'success';
+    let urgent = false;
+    if (upcomingPayment.status === 'overdue' || diffDays < 0) {
+      label = 'Overdue';
+      color = 'danger';
+      urgent = true;
+    } else if (diffDays === 0) {
+      label = 'Due Today';
+      color = 'warning';
+      urgent = true;
+    } else if (diffDays <= 7) {
+      label = 'Due Soon';
+      color = 'warning';
+      urgent = true;
+    }
+    return { due, diffDays, label, color, urgent };
+  }, [upcomingPayment]);
 
   const quickActions = [
     {
@@ -107,12 +217,12 @@ const TenantDashboard = () => {
               <Avatar className="h-10 w-10">
                 <AvatarImage src="" />
                 <AvatarFallback className="bg-primary text-primary-foreground">
-                  {profile?.full_name?.charAt(0) || 'T'}
+                  {(profile?.full_name || profile?.email || '')?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <p className="font-medium text-sm">Welcome back,</p>
-                <p className="text-lg font-bold">{profile?.full_name || 'Tenant'}</p>
+                <p className="text-lg font-bold">{profile?.full_name || profile?.email || ''}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -125,108 +235,147 @@ const TenantDashboard = () => {
         </div>
 
         <div className="p-4 space-y-6">
-          {/* Urgent Alert Bar */}
-          {rentStatus.urgent && (
-            <div className={cn(
-              "p-4 rounded-lg border flex items-center gap-3",
-              rentStatus.color === 'danger' && "bg-danger/10 text-danger border-danger/20",
-              rentStatus.color === 'warning' && "bg-warning/10 text-warning border-warning/20"
-            )}>
-              <AlertTriangle size={20} />
-              <div className="flex-1">
-                <p className="font-medium">
-                  {rentStatus.status === 'Overdue' 
-                    ? `Rent is ${Math.abs(daysTillDue)} days overdue!`
-                    : rentStatus.status === 'Due Today'
-                    ? 'Rent is due today!'
-                    : `Rent due in ${daysTillDue} days`
-                  }
-                </p>
-                <p className="text-sm opacity-90">Pay now to avoid late fees</p>
+          {/* Profile Info */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">Profile</h2>
               </div>
-            </div>
-          )}
-
-          {/* Rent Status Card - Most Prominent */}
-          <Card className={cn(
-            "border-2 relative overflow-hidden",
-            rentStatus.color === 'success' && "border-success/30 bg-gradient-to-r from-success/5 to-success/10",
-            rentStatus.color === 'warning' && "border-warning/30 bg-gradient-to-r from-warning/5 to-warning/10",
-            rentStatus.color === 'danger' && "border-danger/30 bg-gradient-to-r from-danger/5 to-danger/10"
-          )}>
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Current Rent</p>
-                  <p className="text-4xl font-bold">${totalDue.toLocaleString()}</p>
-                  {outstandingBalance > 0 && (
-                    <p className="text-sm text-danger mt-1">
-                      + ${outstandingBalance} late fee
-                    </p>
-                  )}
-                </div>
-                <Badge variant={rentStatus.status === 'Overdue' ? 'destructive' : rentStatus.status === 'Due Today' ? 'secondary' : 'outline'}>
-                  {rentStatus.status}
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <p className="text-sm text-muted-foreground">Due Date</p>
-                  <p className="font-semibold">{nextDueDate.toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground">Full Name</p>
+                  <p className="font-medium">{profile?.full_name || ''}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Property</p>
-                  <p className="font-semibold">
-                    {activeTenancy?.unit?.property?.name || 'Sunset Apartments'}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium break-all">{profile?.email || ''}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Phone</p>
+                  <p className="font-medium">{(profile as any)?.phone || ''}</p>
                 </div>
               </div>
-
-              <Button 
-                size="lg" 
-                className="w-full h-14 text-lg font-semibold"
-                onClick={() => setShowPaymentModal(true)}
-              >
-                <CreditCard className="mr-3" size={24} />
-                Pay ${totalDue} Now
-              </Button>
-              <p className="text-xs text-center text-muted-foreground mt-2">
-                MTN MoMo • Airtel Money • Card • Bank Transfer
-              </p>
             </CardContent>
           </Card>
 
-          {/* Key Info Cards */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="text-center">
-              <CardContent className="p-4">
-                <div className={cn(
-                  "w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center",
-                  "bg-success/10 text-success"
-                )}>
-                  <CheckCircle size={24} />
+          {/* Property Details */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">Property Details</h2>
+              </div>
+              {activeTenancy ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <MapPin size={16} className="text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Property</p>
+                      <p className="font-medium">{activeTenancy.unit?.property?.name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Unit</p>
+                      <p className="font-medium">{activeTenancy.unit?.name}</p>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-muted-foreground">Address</p>
+                    <p className="font-medium">{activeTenancy.unit?.property?.address || ''}</p>
+                  </div>
                 </div>
-                <p className="text-2xl font-bold">12</p>
-                <p className="text-xs text-muted-foreground">Payments Made</p>
-              </CardContent>
-            </Card>
-            <Card className="text-center">
-              <CardContent className="p-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto mb-2 flex items-center justify-center">
-                  <Clock size={24} />
+              ) : (
+                <div className="text-center py-8">
+                  <MapPin className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="font-medium">No property linked yet.</p>
+                  <p className="text-sm text-muted-foreground">Apply for a tenancy to link a property.</p>
                 </div>
-                <p className="text-2xl font-bold">{daysTillDue > 0 ? daysTillDue : 0}</p>
-                <p className="text-xs text-muted-foreground">Days Left</p>
-              </CardContent>
-            </Card>
-            <Card className="text-center">
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Payments Section */}
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Payments</h2>
+            {rentInfo && upcomingPayment ? (
+              <Card className={cn(
+                "border-2 relative overflow-hidden",
+                rentInfo.color === 'success' && "border-success/30 bg-gradient-to-r from-success/5 to-success/10",
+                rentInfo.color === 'warning' && "border-warning/30 bg-gradient-to-r from-warning/5 to-warning/10",
+                rentInfo.color === 'danger' && "border-danger/30 bg-gradient-to-r from-danger/5 to-danger/10"
+              )}>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Next Payment</p>
+                      <p className="text-4xl font-bold">${(upcomingPayment.amount || 0).toLocaleString()}</p>
+                    </div>
+                    <Badge variant={rentInfo.label === 'Overdue' ? 'destructive' : rentInfo.label === 'Due Today' ? 'secondary' : 'outline'}>
+                      {rentInfo.label}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Due Date</p>
+                      <p className="font-semibold">{rentInfo.due.toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Property</p>
+                      <p className="font-semibold">{activeTenancy?.unit?.property?.name || ''}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="lg" 
+                    className="w-full h-14 text-lg font-semibold"
+                    onClick={() => setShowPaymentModal(true)}
+                  >
+                    <CreditCard className="mr-3" size={24} />
+                    Pay ${(upcomingPayment.amount || 0).toLocaleString()} Now
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-center py-6">
+                    <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="font-medium">No upcoming payments found</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
               <CardContent className="p-4">
-                <div className="w-12 h-12 rounded-full bg-warning/10 text-warning mx-auto mb-2 flex items-center justify-center">
-                  <TrendingUp size={24} />
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold">Recent Payments</h3>
                 </div>
-                <p className="text-2xl font-bold">$0</p>
-                <p className="text-xs text-muted-foreground">Outstanding</p>
+                <div className="space-y-3">
+                  {payments.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {p.tenancy?.unit?.property?.name || 'Property'} {p.tenancy?.unit?.name ? `- ${p.tenancy?.unit?.name}` : ''}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">${(p.amount || 0).toLocaleString()}</p>
+                        <Badge variant={p.status === 'paid' ? 'default' : p.status === 'overdue' ? 'destructive' : 'secondary'} className="text-xs">
+                          {p.status || 'unknown'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {payments.length === 0 && (
+                  <div className="text-center py-6">
+                    <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="font-medium">No payments found</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -266,74 +415,74 @@ const TenantDashboard = () => {
             <PropertySearch onClose={() => setShowPropertySearch(false)} />
           )}
 
-          {/* Recent Activity Feed */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Recent Activity</h2>
-              <Button variant="ghost" size="sm">View All</Button>
-            </div>
-            <div className="space-y-3">
-              {activityItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Card key={item.id} className={cn("relative", item.unread && "border-primary/50 bg-primary/5")}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className={cn("p-2 rounded-full", item.color === 'text-success' ? 'bg-success/10' : item.color === 'text-primary' ? 'bg-primary/10' : 'bg-muted')}>
-                          <Icon size={16} className={item.color} />
+          {/* Agreements Section (if available) */}
+          {agreements !== null && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold">Lease Agreements</h2>
+                </div>
+                {agreements.length > 0 ? (
+                  <div className="space-y-2">
+                    {agreements.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium">{a.title || `Agreement ${a.id.substring(0, 6)}`}</p>
+                          <p className="text-xs text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleDateString() : ''}</p>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="font-medium text-sm">{item.title}</p>
-                              <p className="text-sm text-muted-foreground">{item.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString()}</p>
-                              {item.unread && (
-                                <div className="w-2 h-2 bg-primary rounded-full"></div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                        {a.status && (
+                          <Badge variant="outline" className="text-xs">{a.status}</Badge>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="font-medium">No agreements found</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Reminders */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Reminders</h3>
-                <Badge variant="secondary">3</Badge>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-warning rounded-full"></div>
-                  <span>Maintenance inspection tomorrow at 2 PM</span>
+          {/* Maintenance Requests Section (if available) */}
+          {maintenanceRequests !== null && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold">Maintenance Requests</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  <span>Lease renewal notice due next month</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-success rounded-full"></div>
-                  <span>New community guidelines available</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                {maintenanceRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {maintenanceRequests.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium">{m.title || `Request ${m.id.substring(0, 6)}`}</p>
+                          <p className="text-xs text-muted-foreground">{m.created_at ? new Date(m.created_at).toLocaleDateString() : ''}</p>
+                        </div>
+                        {m.status && (
+                          <Badge variant="secondary" className="text-xs">{m.status}</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <Wrench className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="font-medium">No maintenance requests found</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
       <PaymentOptionsModal 
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        amount={totalDue}
+        amount={upcomingPayment?.amount || 0}
       />
     </>
   );
